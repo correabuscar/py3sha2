@@ -23,7 +23,7 @@ class TestBase(unittest.TestCase):
             case sha2.sha512:
                 sha="861844d6704e8573fec34d967e20bcfef3d424cf48be04e6dc08f2bd58c729743371015ead891cc3cf1c9d34b49264b510751b1ff9e537937bc46b5d6ff4ecc8"
             case _:
-                raise Error("shouldn't happen, unless more hash functions were added")
+                raise Error("Shouldn't happen, unless more hash functions were added!")
         return hw,sha
 
     def test_bytes_type(self):
@@ -80,6 +80,26 @@ class TestBase(unittest.TestCase):
             hl.update(str_now.encode('utf8'))
             our_impl=self.f(str_now, encoding='utf-8') #instantiate our sha2 instance and update it!
             self.assertEqual(our_impl.hexdigest(), hl.hexdigest())
+
+    def test_two_diff_encodings(self):
+        #self.f=sha2.sha512
+        #self.f=sha2.sha256
+        instance=self.f("Hi❥you",encoding='utf8')
+        instance.update("!\127!",encoding='latin1')
+        sha2_name=self.f.__name__ #eg. 'sha256'(as string) of sha2(aka our crate)
+        match sha2_name:
+            case 'sha224': hash='50732ff23181a540d596365006cf76ff33e1865bba083e2724848722'
+            case 'sha256': hash='332a8b5b157433802ca623c597d6da56eeb62c137c9fb69947dabad58163ba8a'
+            case 'sha384': hash='0b993e14b02548519b880c46f33fbd79b8f6abde3e3046df753b0aa46868d451b50c67d413343125292a6f4b32fc3bd1'
+            case 'sha512': hash='eaa7e467a24fe0c01b6d034d495b1a2e258faef6ffc3ee1d2c3b8b705f6538fb8bd55f15494705e094eafd530b76d5c7ac06a1d82f5bca7f21714e25b64cc32e'
+            case _: raise Error("Another sha2 implementation must've been added, besides the original four! Or, the functions/classes were renamed?")
+        self.assertEqual(instance.hexdigest(),hash)
+        from hashlib import sha256,sha224,sha512,sha384
+        hl_func=locals()[sha2_name] #eg. the sha256 function of hashlib
+        hl=hl_func()
+        hl.update("Hi❥you".encode('utf8'))
+        hl.update("!\127!".encode('latin1'))
+        self.assertEqual(hash,hl.hexdigest())
 
 
 class TestSHA224(TestBase):
@@ -183,5 +203,5 @@ if __name__ == '__main__':
                                     sha512_suite
                                     ])
 
-    unittest.TextTestRunner(verbosity=2).run(all_tests)
+    unittest.TextTestRunner(failfast=True,verbosity=2).run(all_tests)
 

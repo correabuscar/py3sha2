@@ -1,15 +1,12 @@
 #!/usr/bin/python3
 
-from __future__ import annotations #needed for return type to be the same class type ie. -> sha256
-#^ SyntaxError: from __future__ imports must occur at the beginning of the file
-
 __author__ = 'Thomas Dixon'
 __license__ = 'MIT'
-#NOTE: the sha* implementations are originally from ie. src: https://github.com/thomdixon/pysha2
+#NOTE: the sha* implementations are originally from src: https://github.com/thomdixon/pysha2
 #and only the code modifications/additions (and not the sha* implementations) are by Emanuel Czirai
 __authors__ = "Thomas Dixon, Emanuel Czirai"
 __maintainer__ = "Emanuel Czirai"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __status__ = "Development"
 #^ technically production-ready, but you should use hashlib instead!
 #header info src: https://stackoverflow.com/a/1523456/19999437 and https://epydoc.sourceforge.net/manual-fields.html#module-metadata-variables
@@ -17,12 +14,15 @@ __status__ = "Development"
 import copy
 import struct
 import sys
+#from sha2 import shaBase #what's this? recursion?
+from sha2.shaBase import shaBase
 
 
-def new(m=None):
-    return sha256(m)
+def new(m=None, encoding:str=None):
+    return sha256(m, encoding)
 
-class sha256(object):
+
+class sha256(shaBase):
     _k = (0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
           0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
           0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
@@ -43,129 +43,15 @@ class sha256(object):
           0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19)
     _output_size = 8 #because 8 elements in _h are used for sha256, but only 7(of 8) for sha224
 
-    #these 3 aren't used, apparently, ok we're gonna make them be used:
-    blocksize = 1 #don't know what this is!
     block_size = 64 #this is bytes not bits!
-    block_size_minus_1 = block_size-1 #ie. 63
 
     element_size_bytes = 4 #added by me, size in bytes of one element of _k or _h
-    element_size_bits=element_size_bytes*8
-    element_size_mask=2**element_size_bits-1 #eg. 2^32-1==0xFFFFFFFF for sha256; a bit mask that's the size of the element of _k or _h
 
-    digest_size = _output_size * element_size_bytes #==32bytes (8*4) for sha256, 28=(7*4) for sha224
 
-    debug:bool=False #set to true to print stuff
+    #def __init__(self, m=None, encoding='utf8'):
+    #    super().__init__() #mandatory, doneFIXME: how to ensure it's not missed? well, else it will error anyway. Okay not defining it at all it is then!
 
-    def __init__(self, m=None, encoding='utf8'):
-        assert self.block_size-1 == self.block_size_minus_1
-        assert self.block_size_minus_1+1 == self.block_size
-        assert self._output_size*4 == self.digest_size #32 for sha256, 28 for sha224
-        #print(sys.getsizeof(self._k[0])) # this is in bits!
-        assert sys.getsizeof(self._k[0]) == sys.getsizeof(self._h[0])
-        assert sys.getsizeof(self._k[0]) == self.element_size_bytes * 8
-        assert sys.getsizeof(self._k[0]) == self.element_size_bits
-        assert (2**self.element_size_bits)-1 == (0xFFFFFFFF if self.element_size_bytes==4 else 0xFFFFFFFFFFFFFFFF) #hack because only sha512 and sha256 change these
-        assert 2**self.element_size_bits-1 == self.element_size_mask
+    def dummy(self):
+        pass
 
-        self._buffer = bytes()
-        self._counter = 0
 
-        if m is not None:
-            if type(m) is str:
-                m = bytes(m, encoding=encoding)
-            if type(m) is not bytes:
-                raise TypeError('%s() argument 1 must be bytes, not %s' % (self.__class__.__name__, type(m).__name__))
-            self.update(m)
-
-    def _rotr(self, x, y):
-        return ((x >> y) | (x << (self.element_size_bits - y))) & self.element_size_mask
-
-    def _sha256_process(self, c):
-        wtw_this_is=64 #it's 80 for sha512/384! 64 for sha256/224
-        w = [0]*wtw_this_is
-        w[0:16] = struct.unpack('!16L', c)
-        #^ The form '!' represents the network byte order which is always big-endian as defined in IETF RFC 1700 https://tools.ietf.org/html/rfc1700
-        # ^ L is unsigned long, integer, std size 4
-        #src: https://docs.python.org/3/library/struct.html#struct.calcsize
-        if self.debug:
-            print(w)
-
-        for i in range(16, wtw_this_is):
-            s0 = self._rotr(w[i-15], 7) ^ self._rotr(w[i-15], 18) ^ (w[i-15] >> 3)
-            s1 = self._rotr(w[i-2], 17) ^ self._rotr(w[i-2], 19) ^ (w[i-2] >> 10)
-            w[i] = (w[i-16] + s0 + w[i-7] + s1) & self.element_size_mask
-
-        a,b,c,d,e,f,g,h = self._h
-
-        for i in range(wtw_this_is):
-            s0 = self._rotr(a, 2) ^ self._rotr(a, 13) ^ self._rotr(a, 22)
-            maj = (a & b) ^ (a & c) ^ (b & c)
-            t2 = s0 + maj
-            s1 = self._rotr(e, 6) ^ self._rotr(e, 11) ^ self._rotr(e, 25)
-            ch = (e & f) ^ ((~e) & g)
-            t1 = h + s1 + ch + self._k[i] + w[i]
-
-            h = g
-            g = f
-            f = e
-            e = (d + t1) & self.element_size_mask
-            d = c
-            c = b
-            b = a
-            a = (t1 + t2) & self.element_size_mask
-
-        self._h = [(x+y) & self.element_size_mask for x,y in zip(self._h, [a,b,c,d,e,f,g,h])]
-
-    def update(self, m, encoding='utf-8') -> sha256:
-        if not m:
-            return self
-        if type(m) is str:
-            m = bytes(m, encoding=encoding)
-        if type(m) is not bytes:
-            raise TypeError('%s() argument 1 must be bytes, not %s' % (sys._getframe().f_code.co_name, type(m).__name__))
-
-        self._buffer += m
-        self._counter += len(m)
-
-        while len(self._buffer) >= self.block_size:
-            self._sha256_process(self._buffer[:self.block_size])
-            self._buffer = self._buffer[self.block_size:]
-        return self
-
-    def digest(self):
-        if self.debug:
-            print(f"{self._counter=} {0x3F=} {self._counter<<3=} {self.block_size_minus_1=}")
-        mdi = self._counter & self.block_size_minus_1 #0x3F #that's 63 or 111111 but 11111 is 31; so this is mod 64
-        #^ so mdi is the remainder of the size of buffer div 64, aka size mod 64
-        if self.debug:
-            print(f"{mdi=}")
-        bit_shift_left_by_3 = self._counter<<3 #that's eg. 0b1 << 3 = 0b1000 aka 8
-        if self.debug:
-            print(f"{bit_shift_left_by_3=}")
-        length = struct.pack('!Q', bit_shift_left_by_3)
-        #^ Q is unsigned long long, integer, std size 8
-        if self.debug:
-            print(f"{length=}")
-
-        if mdi < 56:
-            #55 because 64-8-1=55 (length is 8 bytes, the first \x80 is 1 byte)
-            padlen = 55-mdi
-        else:
-            #119 because 128-8-1=119 (length is 8 bytes, the first \x80 is 1 byte; see termination below)
-            padlen = 119-mdi
-
-        if self.debug:
-            print(f"{padlen=}")
-
-        r = self.copy()
-        termination=b'\x80'+(b'\x00'*padlen)+length
-        if self.debug:
-            print(f"{termination=}")
-        r.update(termination)
-        return b''.join([struct.pack('!L', i) for i in r._h[:self._output_size]])
-
-    def hexdigest(self):
-        return self.digest().hex()
-
-    def copy(self):
-        return copy.deepcopy(self)

@@ -4,8 +4,8 @@ __license__ = 'MIT'
 
 from sha2.sha256 import sha256
 
-def new(m=None):
-    return sha224(m)
+def new(m=None, encoding=None):
+    return sha224(m, encoding)
 
 class sha224(sha256):
     _h = (0xc1059ed8, 0x367cd507, 0x3070dd17, 0xf70e5939,
