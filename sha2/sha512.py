@@ -5,11 +5,11 @@ from __future__ import annotations #needed for return type to be the same class 
 
 __author__ = 'Thomas Dixon'
 __license__ = 'MIT'
-#NOTE: the sha* implementations are originally from ie. src: https://github.com/thomdixon/pysha2
+#NOTE: the sha* implementations are originally from src: https://github.com/thomdixon/pysha2
 #and only the code modifications/additions (and not the sha* implementations) are by Emanuel Czirai
 __authors__ = "Thomas Dixon, Emanuel Czirai"
 __maintainer__ = "Emanuel Czirai"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __status__ = "Development"
 #^ technically production-ready, but you should use hashlib instead!
 #header info src: https://stackoverflow.com/a/1523456/19999437 and https://epydoc.sourceforge.net/manual-fields.html#module-metadata-variables

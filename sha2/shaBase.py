@@ -9,7 +9,7 @@ __license__ = 'MIT'
 #and only the code modifications/additions (and not the sha* implementations) are by Emanuel Czirai
 __authors__ = "Thomas Dixon, Emanuel Czirai"
 __maintainer__ = "Emanuel Czirai"
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 __status__ = "Development"
 #^ technically production-ready, but you should use hashlib instead!
 #header info src: https://stackoverflow.com/a/1523456/19999437 and https://epydoc.sourceforge.net/manual-fields.html#module-metadata-variables
@@ -107,6 +107,7 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
             if self.block_size == 64:
                 #print(f"{len(self._k)=}")
                 self._k=self._k[:64] #only first 64 of _k are used for sha224 and sha256, else all 80 for sha384 and sha512
+                #^ the above two 64s are unrelated!
                 #print(f"{len(self._k)=}")
                 #for each in self._k:
                 #    each=each & self.element_size_mask
@@ -199,7 +200,10 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         # ^ L is unsigned long, integer, std size 4
         #src: https://docs.python.org/3/library/struct.html#struct.calcsize
         if self.debug:
-            print(w)
+            print("w=[")
+            print(", ".join(f"0x{num:0{self.element_size_bytes*2}X}" for num in w))
+            #print(", ".join(f"0x{num:0{self.element_size_bytes*2}X}" for num in w if num!=0))
+            print("]")
 
         for i in range(16, self._len_of_k):
             s0 = self._rotr(w[i-15], self.s0_bit_ops1[0]) ^ self._rotr(w[i-15], self.s0_bit_ops1[1]) ^ (w[i-15] >> self.s0_bit_ops1[2])
