@@ -57,5 +57,3 @@ class sha512(shaBase):
 
 
 
-    def dummy(self):
-        pass

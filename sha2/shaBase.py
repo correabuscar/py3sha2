@@ -22,15 +22,52 @@ from abc import ABC, abstractmethod
 
 
 class shaBase(ABC): #metaclass=abc.ABCMeta):
-    blocksize = 1 #don't know what this is!
-    _big_endian_char='!' #in struck.pack/unpack, that's network ordering which is BE aka big endian
-    _big_endian_Q_struct_str=_big_endian_char+'Q' #aka '!Q' aka BE 8 bytes or 64 bits
+    #blocksize = 1 #don't know what this is! and it's not used
     debug:bool=False #set to true to print stuff
     default_string_encoding = 'utf8' #or 'utf-8' same thing
 
-    @abstractmethod #this prevents instantiating shaBase! and subclasses must override this to be instantiable themselves! ugly hack if you ask me.
-    def dummy(self):
-        pass
+    #------
+
+    #using tricks from src: https://stackoverflow.com/a/53417582/19999437
+    @property
+    @abstractmethod
+    def element_size_bytes(self):
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def block_size(self):
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def _k(self):
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def _h(self):
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def _output_size(self):
+        raise NotImplementedError
+
+
+    #@abstractmethod #this prevents instantiating shaBase! and subclasses must override this to be instantiable themselves! ugly hack if you ask me. Ok, don't need this anymore due to the above ones!
+    #def dummy(self):
+    #    pass
+
+    #------
+
+    #Computed in subclass at __init__ time:
+    element_size_bits:int=0
+
+    #readonly: TODO: how?
+    _big_endian_char='!' #in struck.pack/unpack, that's network ordering which is BE aka big endian
+    _big_endian_Q_struct_str=_big_endian_char+'Q' #aka '!Q' aka BE 8 bytes or 64 bits
+
 
     def __init__(self, m=None, encoding:str=None):
         super().__init__()
@@ -46,14 +83,11 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
             match self.element_size_bytes:
                 case 4: self.element_size_char = 'L' #aka 4*8=32 bits
                 case 8: self.element_size_char = 'Q' #aka 8*8=64 bits
-                case _: raise Exception(f"unexpected {self.element_size=} (should be 4 or 8)")
+                case _: raise Exception(f"unexpected {self.element_size_bytes=} (should be 4 or 8)")
             self.digest_size = self._output_size * self.element_size_bytes #==32bytes (8*4) for sha256, 28=(7*4) for sha224, and for sha384 and sha512 is 6*8=48 respectively 8*8=64
-            #FIXME: find proper name for this:
-        match self.__class__.__name__:
-            case 'sha384' | 'sha512': self.wtw_this_is=80
-            case 'sha224' | 'sha256': self.wtw_this_is=64
-            #self.wtw_this_is = 64 #it's 80 for sha512/384! 64 for sha256/224
-            case _: raise Exception(f"Unexpected {self.__class__.__name__=}")
+            #doneFIXME: find proper name for this:
+        #print(f"{len(self._k)=}") #this is 80 for sha512 and 64 for sha256
+        self._len_of_k=len(self._k)
 
 
         self.check_invariants()
@@ -70,6 +104,13 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
             self.update(m)
 
     def check_invariants(self):
+        assert len(self._k) == self._len_of_k
+        match self.__class__.__name__:
+            case 'sha384' | 'sha512': assert 80 == self._len_of_k
+            case 'sha224' | 'sha256': assert 64 == self._len_of_k
+            #self._len_of_k = 64 #it's 80 for sha512/384! 64 for sha256/224
+            case _: raise Exception(f"Unexpected {self.__class__.__name__=}")
+
         assert self.block_size-1 == self.block_size_minus_1
         assert self.block_size_minus_1+1 == self.block_size
         assert self._output_size*self.element_size_bytes == self.digest_size #32 for sha256, 28 for sha224
@@ -110,9 +151,9 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         #
 
         if self.__class__.__name__ in ['sha384', 'sha512']:
-            assert 80 == self.wtw_this_is
+            assert 80 == self._len_of_k
         elif self.__class__.__name__ in ['sha224', 'sha256']:
-            assert 64 == self.wtw_this_is
+            assert 64 == self._len_of_k
         else:
             raise Exception(f"unexpected {self.__class__.__name__=}")
 
@@ -120,7 +161,7 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         return ((x >> y) | (x << (self.element_size_bits - y))) & self.element_size_mask
 
     def _process(self, c):
-        w = [0]*self.wtw_this_is
+        w = [0]*self._len_of_k
         w[0:16] = struct.unpack(self._big_endian_char+'16'+self.element_size_char, c)
         #^ The form '!' represents the network byte order which is always big-endian as defined in IETF RFC 1700 https://tools.ietf.org/html/rfc1700
         # ^ L is unsigned long, integer, std size 4
@@ -128,14 +169,14 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         if self.debug:
             print(w)
 
-        for i in range(16, self.wtw_this_is):
+        for i in range(16, self._len_of_k):
             s0 = self._rotr(w[i-15], self.s0_bit_ops1[0]) ^ self._rotr(w[i-15], self.s0_bit_ops1[1]) ^ (w[i-15] >> self.s0_bit_ops1[2])
             s1 = self._rotr(w[i-2], self.s1_bit_ops1[0]) ^ self._rotr(w[i-2], self.s1_bit_ops1[1]) ^ (w[i-2] >> self.s1_bit_ops1[2])
             w[i] = (w[i-16] + s0 + w[i-7] + s1) & self.element_size_mask
 
         a,b,c,d,e,f,g,h = self._h
 
-        for i in range(self.wtw_this_is):
+        for i in range(self._len_of_k):
             s0 = self._rotr(a, self.s0_bit_ops2[0]) ^ self._rotr(a, self.s0_bit_ops2[1]) ^ self._rotr(a, self.s0_bit_ops2[2])
             maj = (a & b) ^ (a & c) ^ (b & c)
             t2 = s0 + maj
@@ -170,7 +211,7 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         self._buffer += m
         self._counter += len(m)
 
-        #FIXME: get rid of the compile errors whilst in vim like below: (because these are private fields inited only from subclass!)
+        #doneFIXME: get rid of the compile errors whilst in vim like below: (because these are private fields inited only from subclass!)
         while len(self._buffer) >= self.block_size:
             self._process(self._buffer[:self.block_size])
             self._buffer = self._buffer[self.block_size:]
@@ -200,7 +241,7 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         else:
             times=1
 
-        #if mdi < 56:
+        #if mdi < 56: # < 112 for sha512
         if mdi < self.block_size - (times * len_length): # -8 bytes of 'length' for sha256, -16 for sha512 !
             #55 because 64-8-1=55 (length is 8 bytes for sha256, the first \x80 is 1 byte)
             padlen = (self.block_size -len_length -1) -mdi # so 55-mdi for sha256, and 111-mdi for sha512
@@ -225,5 +266,6 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         return copy.deepcopy(self)
 
 
+#TODO: make this a test:
 #a=shaBase() #doneFIXME: oh goodie, can still instantiate this, then why use abc. Must use @abstractmethod, done!
 

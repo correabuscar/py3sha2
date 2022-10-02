@@ -56,7 +56,5 @@ class sha256(shaBase):
     #def __init__(self, m=None, encoding='utf8'):
     #    super().__init__() #mandatory, doneFIXME: how to ensure it's not missed? well, else it will error anyway. Okay not defining it at all it is then!
 
-    def dummy(self):
-        pass
 
 
