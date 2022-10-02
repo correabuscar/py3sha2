@@ -47,6 +47,11 @@ class sha256(shaBase):
 
     element_size_bytes = 4 #added by me, size in bytes of one element of _k or _h
 
+    s0_bit_ops1=[7,18,3]
+    s1_bit_ops1=[17,19,10]
+    s0_bit_ops2=[2,13,22]
+    s1_bit_ops2=[6,11,25]
+
 
     #def __init__(self, m=None, encoding='utf8'):
     #    super().__init__() #mandatory, doneFIXME: how to ensure it's not missed? well, else it will error anyway. Okay not defining it at all it is then!

@@ -98,6 +98,17 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         assert (self.element_size_mask ^ self._k[0]) == (self._k[0] & self.element_size_mask) ^ self.element_size_mask
         #
 
+        #
+        for jlist in [self.s0_bit_ops1,
+                  self.s1_bit_ops1,
+                  self.s0_bit_ops2,
+                  self.s1_bit_ops2]:
+            assert len(jlist)==3
+            for i in jlist:
+                assert i<64
+                assert i>0
+        #
+
         if self.__class__.__name__ in ['sha384', 'sha512']:
             assert 80 == self.wtw_this_is
         elif self.__class__.__name__ in ['sha224', 'sha256']:
@@ -118,17 +129,17 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
             print(w)
 
         for i in range(16, self.wtw_this_is):
-            s0 = self._rotr(w[i-15], 7) ^ self._rotr(w[i-15], 18) ^ (w[i-15] >> 3)
-            s1 = self._rotr(w[i-2], 17) ^ self._rotr(w[i-2], 19) ^ (w[i-2] >> 10)
+            s0 = self._rotr(w[i-15], self.s0_bit_ops1[0]) ^ self._rotr(w[i-15], self.s0_bit_ops1[1]) ^ (w[i-15] >> self.s0_bit_ops1[2])
+            s1 = self._rotr(w[i-2], self.s1_bit_ops1[0]) ^ self._rotr(w[i-2], self.s1_bit_ops1[1]) ^ (w[i-2] >> self.s1_bit_ops1[2])
             w[i] = (w[i-16] + s0 + w[i-7] + s1) & self.element_size_mask
 
         a,b,c,d,e,f,g,h = self._h
 
         for i in range(self.wtw_this_is):
-            s0 = self._rotr(a, 2) ^ self._rotr(a, 13) ^ self._rotr(a, 22)
+            s0 = self._rotr(a, self.s0_bit_ops2[0]) ^ self._rotr(a, self.s0_bit_ops2[1]) ^ self._rotr(a, self.s0_bit_ops2[2])
             maj = (a & b) ^ (a & c) ^ (b & c)
             t2 = s0 + maj
-            s1 = self._rotr(e, 6) ^ self._rotr(e, 11) ^ self._rotr(e, 25)
+            s1 = self._rotr(e, self.s1_bit_ops2[0]) ^ self._rotr(e, self.s1_bit_ops2[1]) ^ self._rotr(e, self.s1_bit_ops2[2])
             ch = (e & f) ^ ((~e) & g)
             t1 = h + s1 + ch + self._k[i] + w[i]
 
@@ -169,7 +180,7 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         if self.debug:
             print(f"{self._counter=} {0x3F=} {self._counter<<3=} {self.block_size_minus_1=}")
         mdi = self._counter & self.block_size_minus_1 #0x3F #that's 63 or 111111 but 11111 is 31; so this is mod 64
-        #^ so mdi is the remainder of the size of buffer div 64, aka size mod 64
+        #^ so mdi is the remainder of the size of buffer div 64, aka size mod 64; ie. bytes
         if self.debug:
             print(f"{mdi=}")
         bit_shift_left_by_3 = self._counter<<3 #that's eg. 0b1 << 3 = 0b1000 aka 8
@@ -177,15 +188,25 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
             print(f"{bit_shift_left_by_3=}")
         length = struct.pack(self._big_endian_Q_struct_str, bit_shift_left_by_3)
         #^ Q is unsigned long long, integer, std size 8 (it's always 8 here, even for sha512)
-        if self.debug:
-            print(f"{length=}")
 
-        if mdi < 56:
-            #55 because 64-8-1=55 (length is 8 bytes, the first \x80 is 1 byte)
-            padlen = 55-mdi
+        len_length=len(length)
+        assert 8 == len_length
+
+        if self.debug:
+            print(f"{length=} {len(length)=}")
+
+        if self.__class__.__name__ in ['sha384', 'sha512']:
+            times=2
         else:
-            #119 because 128-8-1=119 (length is 8 bytes, the first \x80 is 1 byte; see termination below)
-            padlen = 119-mdi
+            times=1
+
+        #if mdi < 56:
+        if mdi < self.block_size - (times * len_length): # -8 bytes of 'length' for sha256, -16 for sha512 !
+            #55 because 64-8-1=55 (length is 8 bytes for sha256, the first \x80 is 1 byte)
+            padlen = (self.block_size -len_length -1) -mdi # so 55-mdi for sha256, and 111-mdi for sha512
+        else:
+            #119 because 2*64-8-1=119 (length is 8 bytes for sha256(twice for sha512), the first \x80 is 1 byte; see termination below)
+            padlen = (2*self.block_size -len_length -1) -mdi #so 119-mdi for sha256, 239-mdi for sha512
 
         if self.debug:
             print(f"{padlen=}")
