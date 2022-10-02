@@ -48,13 +48,13 @@ class sha512(object):
     block_size = 128
     digest_size = 64
 
-    def __init__(self, m=None):
+    def __init__(self, m=None, encoding='utf-8'):
         self._buffer = bytes()
         self._counter = 0
 
         if m is not None:
             if type(m) is str:
-                m = bytes(m, encoding='utf8')
+                m = bytes(m, encoding=encoding)
             if type(m) is not bytes:
                 raise TypeError('%s() argument 1 must be bytes, not %s' % (self.__class__.__name__, type(m).__name__))
             self.update(m)
@@ -92,11 +92,11 @@ class sha512(object):
 
         self._h = [(x+y) & 0xFFFFFFFFFFFFFFFF for x,y in zip(self._h, [a,b,c,d,e,f,g,h])]
 
-    def update(self, m) -> sha512:
+    def update(self, m, encoding='utf8') -> sha512:
         if not m:
             return self
         if type(m) is str:
-            m = bytes(m, encoding='utf8')
+            m = bytes(m, encoding=encoding)
         if type(m) is not bytes:
             raise TypeError('%s() argument 1 must be bytes, not %s' % (sys._getframe().f_code.co_name, type(m).__name__))
 

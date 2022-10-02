@@ -53,6 +53,33 @@ class TestBase(unittest.TestCase):
         #^ I know 0 can be omitted but I wanted to be explicit
         self.assertEqual(h.hexdigest(), sha)
 
+    #src: https://stackoverflow.com/a/21666621/19999437
+    def get_random_unicode_str(self, length):
+        import random
+        try:
+            get_char = unichr
+        except NameError:
+            get_char = chr
+
+        #src: https://stackoverflow.com/a/39682429/19999437
+        alphabet = [ get_char(code_point) for code_point in range(32,0x110000) if get_char(code_point).isprintable() ]
+        return ''.join(random.choice(alphabet) for i in range(length))
+
+    def test_vs_hashlib(self):
+        #import hashlib
+        from hashlib import sha256,sha224,sha512,sha384
+        #print(globals()) #hashlib not included because import is made here(just above)!
+        #print(locals()) #hashlib included!
+        #exit
+        sha2_name=self.f.__name__ #eg. 'sha256'(as string) of sha2
+        hl_func=locals()[sha2_name] #eg. the sha256 function of hashlib
+        #generate 100 random unicode strings of increasing sizes of up to 100 unichars in length
+        for str_length in range(0,100): #XXX: this is slow, hence why only 100 !
+            str_now = self.get_random_unicode_str(str_length)
+            hl=hl_func() #instantiate a new hashlib instance, erm..
+            hl.update(str_now.encode('utf8'))
+            our_impl=self.f(str_now, encoding='utf-8') #instantiate our sha2 instance and update it!
+            self.assertEqual(our_impl.hexdigest(), hl.hexdigest())
 
 
 class TestSHA224(TestBase):
@@ -71,7 +98,7 @@ class TestSHA224(TestBase):
         self.assertEqual(self.f(b'a'*64).hexdigest(),
                          'a88cd5cde6d6fe9136a4e58b49167461ea95d388ca2bdb7afdc3cbf4')
 
-    def test_several_blocks(self):
+    def test_zseveral_blocks(self):
         self.assertEqual(self.f(b'a'*1000000).hexdigest(),
                          '20794655980c91d8bbb4c1ea97618a4bf03f42581948b2ee4ee7ad67')
 
@@ -92,7 +119,7 @@ class TestSHA256(TestBase):
         self.assertEqual(self.f(b'a'*64).hexdigest(),
                          'ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb')
 
-    def test_several_blocks(self):
+    def test_zseveral_blocks(self):
         self.assertEqual(self.f(b'a'*1000000).hexdigest(),
                          'cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0')
 
@@ -115,7 +142,7 @@ class TestSHA384(TestBase):
                          'edb12730a366098b3b2beac75a3bef1b0969b15c48e2163c'+
                          '23d96994f8d1bef760c7e27f3c464d3829f56c0d53808b0b')
 
-    def test_several_blocks(self):
+    def test_zseveral_blocks(self):
         self.assertEqual(self.f(b'a'*1000000).hexdigest(),
                          '9d0e1809716474cb086e834e310a4a1ced149e9c00f24852'+
                          '7972cec5704c2a5b07b8b3dc38ecc4ebae97ddd87f3d8985')
@@ -139,7 +166,7 @@ class TestSHA512(TestBase):
                          'b73d1929aa615934e61a871596b3f3b33359f42b8175602e89f7e06e5f658a24'+
                          '3667807ed300314b95cacdd579f3e33abdfbe351909519a846d465c59582f321')
 
-    def test_several_blocks(self):
+    def test_zseveral_blocks(self):
         self.assertEqual(self.f(b'a'*1000000).hexdigest(),
                          'e718483d0ce769644e2e42c7bc15b4638e1f98b13b2044285632a803afa973eb'+
                          'de0ff244877ea60a4cb0432ce577c31beb009c5c2c49aa2e4eadb217ad8cc09b')

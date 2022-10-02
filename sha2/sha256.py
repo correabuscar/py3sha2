@@ -53,7 +53,7 @@ class sha256(object):
 
     debug:bool=False #set to true to print stuff
 
-    def __init__(self, m=None):
+    def __init__(self, m=None, encoding='utf8'):
         assert self.block_size-1 == self.block_size_minus_1
         assert self.block_size_minus_1+1 == self.block_size
         assert self._output_size*4 == self.digest_size #32 for sha256, 28 for sha224
@@ -67,7 +67,7 @@ class sha256(object):
 
         if m is not None:
             if type(m) is str:
-                m = bytes(m, encoding='utf8')
+                m = bytes(m, encoding=encoding)
             if type(m) is not bytes:
                 raise TypeError('%s() argument 1 must be bytes, not %s' % (self.__class__.__name__, type(m).__name__))
             self.update(m)
@@ -111,11 +111,11 @@ class sha256(object):
 
         self._h = [(x+y) & 0xFFFFFFFF for x,y in zip(self._h, [a,b,c,d,e,f,g,h])]
 
-    def update(self, m) -> sha256:
+    def update(self, m, encoding='utf-8') -> sha256:
         if not m:
             return self
         if type(m) is str:
-            m = bytes(m, encoding='utf8')
+            m = bytes(m, encoding=encoding)
         if type(m) is not bytes:
             raise TypeError('%s() argument 1 must be bytes, not %s' % (sys._getframe().f_code.co_name, type(m).__name__))
 
