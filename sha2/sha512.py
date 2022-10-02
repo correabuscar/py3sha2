@@ -1,6 +1,18 @@
 #!/usr/bin/python3
+
+from __future__ import annotations #needed for return type to be the same class type ie. -> sha256
+#^ SyntaxError: from __future__ imports must occur at the beginning of the file
+
 __author__ = 'Thomas Dixon'
 __license__ = 'MIT'
+#NOTE: the sha* implementations are originally from ie. src: https://github.com/thomdixon/pysha2
+#and only the code modifications/additions (and not the sha* implementations) are by Emanuel Czirai
+__authors__ = "Thomas Dixon, Emanuel Czirai"
+__maintainer__ = "Emanuel Czirai"
+__version__ = "0.0.1"
+__status__ = "Development"
+#^ technically production-ready, but you should use hashlib instead!
+#header info src: https://stackoverflow.com/a/1523456/19999437 and https://epydoc.sourceforge.net/manual-fields.html#module-metadata-variables
 
 import copy, struct, sys
 
@@ -37,12 +49,14 @@ class sha512(object):
     digest_size = 64
 
     def __init__(self, m=None):
-        self._buffer = ''
+        self._buffer = bytes()
         self._counter = 0
 
         if m is not None:
-            if type(m) is not str:
-                raise TypeError('%s() argument 1 must be string, not %s' % (self.__class__.__name__, type(m).__name__))
+            if type(m) is str:
+                m = bytes(m, encoding='utf8')
+            if type(m) is not bytes:
+                raise TypeError('%s() argument 1 must be bytes, not %s' % (self.__class__.__name__, type(m).__name__))
             self.update(m)
 
     def _rotr(self, x, y):
@@ -78,11 +92,13 @@ class sha512(object):
 
         self._h = [(x+y) & 0xFFFFFFFFFFFFFFFF for x,y in zip(self._h, [a,b,c,d,e,f,g,h])]
 
-    def update(self, m):
+    def update(self, m) -> sha512:
         if not m:
-            return
-        if type(m) is not str:
-            raise TypeError('%s() argument 1 must be string, not %s' % (sys._getframe().f_code.co_name, type(m).__name__))
+            return self
+        if type(m) is str:
+            m = bytes(m, encoding='utf8')
+        if type(m) is not bytes:
+            raise TypeError('%s() argument 1 must be bytes, not %s' % (sys._getframe().f_code.co_name, type(m).__name__))
 
         self._buffer += m
         self._counter += len(m)
@@ -90,6 +106,8 @@ class sha512(object):
         while len(self._buffer) >= 128:
             self._sha512_process(self._buffer[:128])
             self._buffer = self._buffer[128:]
+
+        return self
 
     def digest(self):
         mdi = self._counter & 0x7F
@@ -101,11 +119,11 @@ class sha512(object):
             padlen = 239-mdi
 
         r = self.copy()
-        r.update('\x80'+('\x00'*(padlen+8))+length)
-        return ''.join([struct.pack('!Q', i) for i in r._h[:self._output_size]])
+        r.update(b'\x80'+(b'\x00'*(padlen+8))+length)
+        return b''.join([struct.pack('!Q', i) for i in r._h[:self._output_size]])
 
     def hexdigest(self):
-        return self.digest().encode('hex')
+        return self.digest().hex()
 
     def copy(self):
         return copy.deepcopy(self)
