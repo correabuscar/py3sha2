@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 __author__ = 'Thomas Dixon'
 __license__ = 'MIT'

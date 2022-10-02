@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 import unittest
 from sha2 import *
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     sha512_suite = unittest.TestLoader().loadTestsFromTestCase(TestSHA512)
 
     all_tests = unittest.TestSuite([sha224_suite,
-                                    sha256_suite, 
+                                    sha256_suite,
                                     sha384_suite,
                                     sha512_suite])
 
