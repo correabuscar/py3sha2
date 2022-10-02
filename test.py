@@ -71,7 +71,7 @@ class TestBase(unittest.TestCase):
         #print(globals()) #hashlib not included because import is made here(just above)!
         #print(locals()) #hashlib included!
         #exit
-        sha2_name=self.f.__name__ #eg. 'sha256'(as string) of sha2
+        sha2_name=self.f.__name__ #eg. 'sha256'(as string) of sha2(aka our crate)
         hl_func=locals()[sha2_name] #eg. the sha256 function of hashlib
         #generate 100 random unicode strings of increasing sizes of up to 100 unichars in length
         for str_length in range(0,100): #XXX: this is slow, hence why only 100 !

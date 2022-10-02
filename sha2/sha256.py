@@ -44,11 +44,14 @@ class sha256(object):
     _output_size = 8 #because 8 elements in _h are used for sha256, but only 7(of 8) for sha224
 
     #these 3 aren't used, apparently, ok we're gonna make them be used:
-    blocksize = 1
-    block_size = 64
+    blocksize = 1 #don't know what this is!
+    block_size = 64 #this is bytes not bits!
+    block_size_minus_1 = block_size-1 #ie. 63
+
     element_size_bytes = 4 #added by me, size in bytes of one element of _k or _h
     element_size_bits=element_size_bytes*8
-    block_size_minus_1 = block_size-1 #ie. 63
+    element_size_mask=2**element_size_bits-1 #eg. 2^32-1==0xFFFFFFFF for sha256; a bit mask that's the size of the element of _k or _h
+
     digest_size = _output_size * element_size_bytes #==32bytes (8*4) for sha256, 28=(7*4) for sha224
 
     debug:bool=False #set to true to print stuff
@@ -61,6 +64,8 @@ class sha256(object):
         assert sys.getsizeof(self._k[0]) == sys.getsizeof(self._h[0])
         assert sys.getsizeof(self._k[0]) == self.element_size_bytes * 8
         assert sys.getsizeof(self._k[0]) == self.element_size_bits
+        assert (2**self.element_size_bits)-1 == (0xFFFFFFFF if self.element_size_bytes==4 else 0xFFFFFFFFFFFFFFFF) #hack because only sha512 and sha256 change these
+        assert 2**self.element_size_bits-1 == self.element_size_mask
 
         self._buffer = bytes()
         self._counter = 0
@@ -73,7 +78,7 @@ class sha256(object):
             self.update(m)
 
     def _rotr(self, x, y):
-        return ((x >> y) | (x << (self.element_size_bits - y))) & 0xFFFFFFFF
+        return ((x >> y) | (x << (self.element_size_bits - y))) & self.element_size_mask
 
     def _sha256_process(self, c):
         wtw_this_is=64 #it's 80 for sha512/384! 64 for sha256/224
@@ -88,7 +93,7 @@ class sha256(object):
         for i in range(16, wtw_this_is):
             s0 = self._rotr(w[i-15], 7) ^ self._rotr(w[i-15], 18) ^ (w[i-15] >> 3)
             s1 = self._rotr(w[i-2], 17) ^ self._rotr(w[i-2], 19) ^ (w[i-2] >> 10)
-            w[i] = (w[i-16] + s0 + w[i-7] + s1) & 0xFFFFFFFF
+            w[i] = (w[i-16] + s0 + w[i-7] + s1) & self.element_size_mask
 
         a,b,c,d,e,f,g,h = self._h
 
@@ -103,13 +108,13 @@ class sha256(object):
             h = g
             g = f
             f = e
-            e = (d + t1) & 0xFFFFFFFF
+            e = (d + t1) & self.element_size_mask
             d = c
             c = b
             b = a
-            a = (t1 + t2) & 0xFFFFFFFF
+            a = (t1 + t2) & self.element_size_mask
 
-        self._h = [(x+y) & 0xFFFFFFFF for x,y in zip(self._h, [a,b,c,d,e,f,g,h])]
+        self._h = [(x+y) & self.element_size_mask for x,y in zip(self._h, [a,b,c,d,e,f,g,h])]
 
     def update(self, m, encoding='utf-8') -> sha256:
         if not m:
