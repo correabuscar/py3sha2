@@ -74,10 +74,15 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
         assert self.block_size_minus_1+1 == self.block_size
         assert self._output_size*self.element_size_bytes == self.digest_size #32 for sha256, 28 for sha224
         #print(sys.getsizeof(self._k[0])) # this is in bits!
-        assert sys.getsizeof(self._k[0]) == sys.getsizeof(self._h[0])
-        print(f"{sys.getsizeof(self._k[0])=} {self.__class__=}") #FIXME: this is 36 for sha384 /:)
-        assert sys.getsizeof(self._k[0]) == self.element_size_bytes * 8 #8 bits per byte
-        assert sys.getsizeof(self._k[0]) == self.element_size_bits
+        #assert sys.getsizeof(self._k[0]) == sys.getsizeof(self._h[0])
+        #for i in self._k:
+            #    print(f"{sys.getsizeof(i)=} {i=}")
+        #print(f"{sys.getsizeof(self._k[0])=} {self.__class__=}") #FIXME: this is 36 for sha384 /:)
+        #well that getsizeof() is no good https://stackoverflow.com/a/10365639/19999437
+        #assert sys.getsizeof(self._k[0]) == self.element_size_bytes * 8 #8 bits per byte
+        #assert sys.getsizeof(self._k[0]) == self.element_size_bits
+        assert self.element_size_bytes * 8 == self.element_size_bits
+
         #TODO: rename mask to bitmask
         match self.element_size_bytes:
             case 4: actual_mask=0xFFFFFFFF
@@ -85,6 +90,14 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
             case _: raise Exception(f"unexpected {self.element_size=} (should be 4 or 8)")
         assert (2**self.element_size_bits)-1 == actual_mask
         assert 2**self.element_size_bits-1 == self.element_size_mask
+
+        #
+        #print(f"{self.element_size_mask ^ self._k[0]=:b}")
+        assert (self._k[0] & self.element_size_mask) == self._k[0]
+        assert (self._k[0] & self.element_size_mask) ^ self._k[0] == 0
+        assert (self.element_size_mask ^ self._k[0]) == (self._k[0] & self.element_size_mask) ^ self.element_size_mask
+        #
+
         if self.__class__.__name__ in ['sha384', 'sha512']:
             assert 80 == self.wtw_this_is
         elif self.__class__.__name__ in ['sha224', 'sha256']:
