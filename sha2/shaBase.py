@@ -9,7 +9,7 @@ __license__ = 'MIT'
 #and only the code modifications/additions (and not the sha* implementations) are by Emanuel Czirai
 __authors__ = "Thomas Dixon, Emanuel Czirai"
 __maintainer__ = "Emanuel Czirai"
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 __status__ = "Development"
 #^ technically production-ready, but you should use hashlib instead!
 #header info src: https://stackoverflow.com/a/1523456/19999437 and https://epydoc.sourceforge.net/manual-fields.html#module-metadata-variables
@@ -121,7 +121,7 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
 
         self.check_invariants()
 
-        self._buffer = bytes()
+        self._buffer = bytes() # a list of chars where each char is in range [0..255]
         self._counter = 0
 
         if m is not None: #eg. not empty string, then
@@ -191,26 +191,75 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
             raise Exception(f"unexpected {self.__class__.__name__=}")
 
     def _rotr(self, x, y):
-        return ((x >> y) | (x << (self.element_size_bits - y))) & self.element_size_mask
+        #XXX: this rotr is lossless because x and y are the same size as the mask, ie. not bigger, even though & mask is used below; and because bits wrap around! (unlike bit shifting)
+        assert x & self.element_size_mask == x
+        assert y & self.element_size_mask == y
+        #NOTE: this makes hash work without needing the use of '& mask' here! but fails the assert here. Probably works due to '& mask' in other places!
+        #rotr=((x >> y) | (x << (self.element_size_bits - y))) #& self.element_size_mask
+        #moved the mask sooner:
+        rotr=((x >> y) | (x << (self.element_size_bits - y)) & self.element_size_mask )
+        assert rotr == rotr & self.element_size_mask, f"{rotr=:b} {rotr & self.element_size_mask=:b}"
+        return rotr
+        #return ((x >> y) | (x << (self.element_size_bits - y))) & self.element_size_mask
+        #moved the mask sooner:
+        #return ((x >> y) | (x << (self.element_size_bits - y)) & self.element_size_mask)
 
     def _process(self, c):
+        if self.debug:
+            print(f"in {self.__class__.__name__}._process()")
+            print(f"{len(c)=} c=[")
+            for i in c:
+                assert i>=0
+                assert i<=255
+            print(", ".join(f"0x{num:01X}" for num in c))
+            print("]")
+        #assert False
         w = [0]*self._len_of_k
         w[0:16] = struct.unpack(self._big_endian_char+'16'+self.element_size_char, c)
         #^ The form '!' represents the network byte order which is always big-endian as defined in IETF RFC 1700 https://tools.ietf.org/html/rfc1700
         # ^ L is unsigned long, integer, std size 4
         #src: https://docs.python.org/3/library/struct.html#struct.calcsize
+        #^ so unpacking all 64 bytes of c into the first 16 elements of w where 1 element is 4 bytes
+        #if c=[0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0xE2, 0x9D, 0xA7, 0x69, 0x80]
+        #then w=[0x30313233, 0x34353637, 0x38396162, 0x63646566, 0x6768E29D, 0xA7698000, 0x00000000, ...]
         if self.debug:
-            print("w=[")
+            print(f"{len(w)=} w=[")
             print(", ".join(f"0x{num:0{self.element_size_bytes*2}X}" for num in w))
             #print(", ".join(f"0x{num:0{self.element_size_bytes*2}X}" for num in w if num!=0))
             print("]")
 
         for i in range(16, self._len_of_k):
+            #XXX: this bit shift >> to the right by 3 is lossy, hmm...
             s0 = self._rotr(w[i-15], self.s0_bit_ops1[0]) ^ self._rotr(w[i-15], self.s0_bit_ops1[1]) ^ (w[i-15] >> self.s0_bit_ops1[2])
+            if self.debug:
+                print(f"{i=} {w[i-15]=:0{self.element_size_bits}b} {s0=:0{self.element_size_bits}b} {w[i-15]=:0{self.element_size_bytes*2}X} {s0=:0{self.element_size_bytes*2}X}")
+            #XXX: this bit shift >> to the right by 10 is lossy, hmm...
             s1 = self._rotr(w[i-2], self.s1_bit_ops1[0]) ^ self._rotr(w[i-2], self.s1_bit_ops1[1]) ^ (w[i-2] >> self.s1_bit_ops1[2])
+            if self.debug:
+                print(f"{i=} {w[i-2]=:0{self.element_size_bits}b} {s1=:0{self.element_size_bits}b} {w[i-2]=:0{self.element_size_bytes*2}X} {s1=:0{self.element_size_bytes*2}X}")
+            #XXX: this addition that would overflow and truncation, is lossy, hmm...
             w[i] = (w[i-16] + s0 + w[i-7] + s1) & self.element_size_mask
+            if self.debug:
+                print(f"{i=} {w[i]=:0{self.element_size_bits}b} {w[i-16]=:0{self.element_size_bits}b} {w[i-7]=:0{self.element_size_bits}b} {w[i]=:0{self.element_size_bytes*2}X} {w[i-16]=:0{self.element_size_bytes*2}X} {w[i-7]=:0{self.element_size_bytes}X}")
+                print(f"{len(w)=} w=[")
+                print(", ".join(f"0x{num:0{self.element_size_bytes*2}X}" for num in w))
+                #print(", ".join(f"0x{num:0{self.element_size_bytes*2}X}" for num in w if num!=0))
+                print("]")
 
         a,b,c,d,e,f,g,h = self._h
+        if self.debug:
+            print(f"{len(self._h)=} _h=[")
+            print(", ".join(f"0x{num:0{self.element_size_bytes*2}X}" for num in self._h))
+            print("]")
+            #the following prints each of the 8 local vars: a,b,c,d,e,f,g,h
+            #as_chars=['a','b','c','d','e','f','g','h']
+            as_chars=range(ord('a'),ord('h')+1)
+            #print(f"{locals()[chr(as_chars[0])]=:X}")
+            locals_=locals() #to avoid calling the function for each element
+            as_list=[locals_[chr(c)] for c in as_chars]
+            #for idx,i in enumerate([a,b,c,d,e,f,g,h]):
+            for idx,elem in enumerate(as_list):
+                print(f"{chr(as_chars[idx])}={elem:{self.element_size_bytes*2}X}")
 
         for i in range(self._len_of_k):
             s0 = self._rotr(a, self.s0_bit_ops2[0]) ^ self._rotr(a, self.s0_bit_ops2[1]) ^ self._rotr(a, self.s0_bit_ops2[2])
@@ -249,6 +298,7 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
 
         #doneFIXME: get rid of the compile errors whilst in vim like below: (because these are private fields inited only from subclass!)
         while len(self._buffer) >= self.block_size:
+            #only _process one block at a time, where a block is block_size bytes (eg. 64 bytes for sha256, 128 for sha512) and a byte is in range [0..255]
             self._process(self._buffer[:self.block_size])
             self._buffer = self._buffer[self.block_size:]
         return self
@@ -290,6 +340,8 @@ class shaBase(ABC): #metaclass=abc.ABCMeta):
 
         r = self.copy()
         termination=b'\x80'+(b'\x00'*padlen)+length
+        #LATIN1 80, 128, 0x80, 0200, bits 10000000
+        #Control character; quotes as \u{80}, called ^@
         if self.debug:
             print(f"{termination=}")
         r.update(termination)
